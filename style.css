@@ -1,7 +1,7 @@
 /* this is first section  */
 .uperdiv1 {
     margin: 0px; margin-top: 50px;
-    padding: 30px;
+    padding: 10%;
     height: 40%; width: 45%;
     
 } 
@@ -42,10 +42,10 @@
 
 } 
 .link2 :hover{ 
-    text-shadow:none;
+    text-decoration: none;
 }
 .middlediv2{  margin: 50px 30px 10px 20px;
-    padding: 30px;
+    padding: 10%;
     height: 30%; width: 50%;
     
 
