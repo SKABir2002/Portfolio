@@ -1,0 +1,87 @@
+/* this is first section  */
+.uperdiv1 {
+    margin: 0px; margin-top: 50px;
+    padding: 30px;
+    height: 40%; width: 45%;
+    
+} 
+.uperdiv1 h1{
+    color: rgb(255, 17, 0)
+ ;
+}
+.uperdiv2{
+   padding: 40px; height: 40%; width: 45%;
+
+}
+.section1{
+     background-image: url(images/header-bg.png); height: 50%;  width: 100%;
+    display: flex; 
+}
+.link{ height: 20px; width: 60px; padding: 5px;
+ text-decoration: none;
+ border: 0px ;border-radius: 5px;
+ 
+ background-image: linear-gradient(rgb(235, 11, 11), rgba(242, 141, 32, 0.664));
+ font-size: 10px; color: aliceblue; 
+
+} 
+
+/* second section starts*/
+
+.middlediv1{ margin-top: 20px;
+    padding: 50px; height: 30%; width: 45%;
+
+
+}
+.link2{
+    height: 20px; width: 60px; padding: 5px;
+    text-decoration: none;
+    border: 0px ;border-radius: 5px;
+    background-image: linear-gradient(rgb(233, 30, 30), rgb(253, 125, 4));
+    font-size: 10px; color: aliceblue; 
+
+} 
+.link2 :hover{ 
+    text-shadow:none;
+}
+.middlediv2{  margin: 50px 30px 10px 20px;
+    padding: 30px;
+    height: 30%; width: 50%;
+    
+
+}  
+.section2{ margin-top: 10px; width: 100%;
+    display: flex; background-image: url(images/biography-bg.png);
+     
+} 
+ 
+
+/* 3rd section starts*/
+.works{
+    text-align: center; margin-top: 40px;
+
+}
+
+.lastdiv{
+    margin-top: 20px; display: flex; width: 65%; padding: 10px; margin-left: 15px; margin-right: 15px;
+} 
+
+.section3{
+    background-image: url(images/latest-work-bg.png);
+
+}
+.footer{ margin-top: 20px;
+    background-image: url(images/footer-bg.png);
+
+}
+.footerdiv1{ text-align: center;
+
+
+}
+.footerdiv2{ color: aliceblue;
+        background-color: rgb(223, 79, 108);
+text-align: center; padding-top: 25px; height: 50%; padding-bottom: 35px;
+} 
+.div-clear{
+    clear: both;
+}
