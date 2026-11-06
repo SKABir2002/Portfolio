@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCB Command Designer</title>
+  <meta name="description" content="Design printed circuit boards by typing commands or asking an AI. Autorouter, DRC, Gerber export.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">▣</span> PCB Command Designer</div>
+    <nav class="tools" aria-label="Toolbar">
+      <button data-cmd="demo" title="Build a 555 LED blinker example">Demo</button>
+      <button data-cmd="route" title="Autoroute all nets">Route</button>
+      <button data-cmd="drc" title="Design rule check">DRC</button>
+      <button data-cmd="undo" title="Undo (Ctrl+Z)">Undo</button>
+      <button data-cmd="redo" title="Redo (Ctrl+Y)">Redo</button>
+      <select id="layerSel" aria-label="Layer in front">
+        <option value="all">Both layers</option>
+        <option value="top">Top in front</option>
+        <option value="bottom">Bottom in front</option>
+      </select>
+      <div class="menu">
+        <button id="exportBtn" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+        <div class="menu-list" id="exportMenu" hidden>
+          <button data-cmd="export gerber">Gerber + drill (.zip)</button>
+          <button data-cmd="export svg">Image (.svg)</button>
+          <button data-cmd="export png">Image (.png)</button>
+          <button data-cmd="export bom">Bill of materials (.csv)</button>
+          <button data-cmd="export json">Project (.json)</button>
+          <button data-cmd="open">Open project…</button>
+        </div>
+      </div>
+      <button id="aiBtn" class="accent">AI settings</button>
+      <button data-cmd="help">Help</button>
+    </nav>
+  </header>
+
+  <main class="workspace">
+    <section class="canvas-wrap" id="canvasWrap">
+      <canvas id="board" tabindex="0" aria-label="PCB canvas"></canvas>
+      <div class="hud" id="hud">x 0.00  y 0.00</div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <aside class="side">
+      <div class="tabs" role="tablist">
+        <button role="tab" class="tab active" data-tab="console">Console</button>
+        <button role="tab" class="tab" data-tab="parts">Parts</button>
+        <button role="tab" class="tab" data-tab="nets">Nets</button>
+      </div>
+      <div class="panel" id="panel-console"><div id="log" aria-live="polite"></div></div>
+      <div class="panel" id="panel-parts" hidden></div>
+      <div class="panel" id="panel-nets" hidden></div>
+
+      <form id="cmdForm" autocomplete="off">
+        <div class="mode" role="radiogroup" aria-label="Input mode">
+          <button type="button" class="mode-btn active" data-mode="cmd">Command</button>
+          <button type="button" class="mode-btn" data-mode="ai">AI ✦</button>
+        </div>
+        <div class="cmdline">
+          <span class="prompt" id="prompt">›</span>
+          <input id="cmd" spellcheck="false" placeholder="add R0805 R1 10k at 10,10">
+          <button type="submit" class="run">Run</button>
+        </div>
+      </form>
+    </aside>
+  </main>
+
+  <dialog id="aiDialog">
+    <form method="dialog" class="dlg">
+      <h2>AI settings</h2>
+      <p>The AI turns plain language (English, বাংলা or Banglish) into designer commands using Claude.
+        Paste an Anthropic API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.
+        The key is sent only to the Anthropic API, straight from your browser.</p>
+      <label>API key <input id="aiKey" type="password" placeholder="sk-ant-..." autocomplete="off"></label>
+      <label>Model
+        <select id="aiModel">
+          <option value="claude-opus-5-5">Claude Opus 5.5 (best)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (faster)</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 (cheapest)</option>
+        </select>
+      </label>
+      <label class="check"><input id="aiRemember" type="checkbox"> Remember the key in this browser</label>
+      <p class="note">Only use your own key on your own device. Anyone who can open this browser profile could read a remembered key.</p>
+      <div class="dlg-actions">
+        <button value="cancel">Cancel</button>
+        <button value="save" class="accent" id="aiSave">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="helpDialog">
+    <div class="dlg wide">
+      <h2>Commands</h2>
+      <div id="helpBody"></div>
+      <div class="dlg-actions"><button id="helpClose" class="accent">Close</button></div>
+    </div>
+  </dialog>
+
+  <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
