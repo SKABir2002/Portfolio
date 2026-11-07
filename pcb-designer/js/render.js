@@ -80,7 +80,7 @@ export function render(canvas, view, st) {
     for (const p of pads) if (!p.drill && p.layers[0] === layer) fillShape(c, v, p.shape);
     c.globalAlpha = 1;
   };
-  drawCopper(back, st.layer === 'all' ? 0.85 : 0.35);
+  drawCopper(back, st.layer === 'all' ? 0.85 : 0.55);
   drawCopper(front, 1);
 
   // through-hole pads, vias, holes
@@ -156,6 +156,7 @@ export function render(canvas, view, st) {
       c.beginPath(); c.arc(x, y, r + 3, 0, 7); c.stroke();
     }
   }
+  if (st.overlay) st.overlay(c, v);
 }
 
 export function hitComponent(wx, wy) {

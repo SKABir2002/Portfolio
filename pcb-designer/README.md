@@ -4,6 +4,8 @@ A browser PCB layout tool in the spirit of EasyEDA, but driven by **typed comman
 
 ![Screenshot](screenshot.png)
 
+![Drawing tracks by hand](drawing.png)
+
 ## Run it
 
 It is a static site with no build step and no dependencies. ES modules need to be served over HTTP:
@@ -38,11 +40,24 @@ Type `demo` for a complete 555 LED blinker, `help` for every command and `footpr
 | Board | `board 80x50`, `grid 1.27`, `rules clearance 0.2 width 0.3 via 0.7/0.35`, `hole 3.5,3.5`, `text "LABEL" at X,Y` |
 | Parts | `add <footprint> [REF] [value] [at X,Y] [rot 90] [bottom]`, `move`, `rotate`, `flip`, `value`, `delete`, `autoplace` |
 | Nets | `connect R1.2 LED1.1`, `net GND U1.4 C1.2`, `disconnect`, `rename`, `width NET 0.6` |
-| Routing | `route [NET]`, `unroute [NET]`, `track R1.2 20,10 LED1.1 [bottom] [width 0.5]`, `via X,Y`, `drc` |
+| Routing | `route [NET]`, `unroute [NET]`, `track R1.2 20,10 LED1.1 [bottom] [width 0.5]`, `via X,Y`, `erase X,Y [top\|bottom]`, `drc` |
 | Files | `export gerber\|svg\|png\|bom\|json`, `save`, `load`, `open` |
 | AI | `ai <what you want>`, or switch the input to **AI ✦** mode |
 
-You can put several commands on one line with `;`. The mouse works too: drag parts, drag empty space to pan, use the wheel to zoom, hover a pad to see its net. Keys: R rotates, F flips, Delete removes, Ctrl+Z / Ctrl+Y undo and redo.
+You can put several commands on one line with `;`.
+
+## Editing by hand (mouse / touch)
+
+Commands and the mouse work on the same design, so you can autoroute and then fix single tracks by hand. The tool palette above the board has:
+
+| Tool | How it works |
+|---|---|
+| **Select** (S) | Drag parts, track segments or vias. Click a track to show its corner handles, then drag them. Delete removes the selected part, segment or via. R rotates, F flips. |
+| **Track** (W) | Click a pad to start, click to add 45° corners, click the target pad to finish (or double-click, right-click, Enter, or the ✓ Finish button). V drops a via and switches layer. `/` changes the bend style. Backspace removes the last corner and Esc cancels. The preview turns orange when it is too close to other copper. A wrong-net pad or a pad on the other layer is refused. Drawing between two pads also connects them in the netlist. |
+| **Via** (V) | Click to place a via. Placed on a track, it joins that track's net. |
+| **Top / Bottom** (L) | Choose which copper layer you draw on. |
+
+Every hand edit is one undo step (Ctrl+Z / Ctrl+Y). Track drawings are written to the console as the equivalent `track` / `via` / `connect` commands, so they can be replayed. Drag empty space or right/middle-drag to pan; use the wheel to zoom.
 
 ## What's inside
 
@@ -57,7 +72,8 @@ You can put several commands on one line with `;`. The mouse works too: drag par
 ```
 index.html          UI shell
 css/style.css       theme
-js/main.js          UI wiring, canvas interaction, console
+js/main.js          UI wiring, console, panels, dialogs
+js/tools.js         mouse editing: select/drag, track drawing, vias
 js/commands.js      command language + demo script
 js/state.js         design model, undo/redo, world geometry
 js/footprints.js    footprint library and pin conventions

@@ -5,6 +5,7 @@ import {
 } from './state.js';
 import { getFootprint, normalizeFootprint, FOOTPRINT_NAMES, PIN_NOTES } from './footprints.js';
 import { autoroute, unroute } from './router.js';
+import { ptSegDist } from './geometry.js';
 import { runDRC } from './drc.js';
 
 const REF_RE = /^(?:R|C|L|D|LED|U|Q|J|P|SW|Y|X|F|K|BT|TP|H|IC|T|M|CN|FB|VR|RV)\d+$/i;
@@ -331,6 +332,27 @@ def(['via'], 'Routing', 'via X,Y [net NAME]', 'Place a via.', (a) => {
   const ni = t.findIndex((x) => x.v.toLowerCase() === 'net');
   doc.vias.push({ net: ni >= 0 ? findNet(t[ni + 1]?.v) : null, x: r3(p.x), y: r3(p.y), dia: doc.rules.viaDia, drill: doc.rules.viaDrill, auto: false });
   return `Via at ${fmt(p.x)},${fmt(p.y)}.`;
+});
+def(['erase'], 'Routing', 'erase X,Y [top|bottom]', 'Delete the via, or the track segment, under a point.', (a) => {
+  const t = a.filter((x) => x.v.toLowerCase() !== 'at');
+  const layer = t.find((x) => /^(top|bottom)$/i.test(x.v))?.v.toLowerCase();
+  const p = parsePoint(t.find((x) => !/^(top|bottom)$/i.test(x.v))?.v);
+  const vi = doc.vias.findIndex((v) => Math.hypot(v.x - p.x, v.y - p.y) <= v.dia / 2);
+  const dropVia = () => { const v = doc.vias.splice(vi, 1)[0]; return `Removed via at ${fmt(v.x)},${fmt(v.y)}.`; };
+  if (vi >= 0 && !layer) return dropVia();
+  let best = null;
+  doc.tracks.forEach((tr, ti) => {
+    if (layer && tr.layer !== layer) return;
+    for (let si = 0; si + 1 < tr.pts.length; si++) {
+      const d = ptSegDist(p.x, p.y, ...tr.pts[si], ...tr.pts[si + 1]) - tr.width / 2;
+      if (d <= 0.05 && (!best || d < best.d)) best = { ti, si, d };
+    }
+  });
+  if (!best) { if (vi >= 0) return dropVia(); throw new Error(`Nothing to erase at ${fmt(p.x)},${fmt(p.y)}.`); }
+  const tr = doc.tracks[best.ti];
+  const parts = [tr.pts.slice(0, best.si + 1), tr.pts.slice(best.si + 1)].filter((q) => q.length >= 2);
+  doc.tracks.splice(best.ti, 1, ...parts.map((pts) => ({ ...tr, pts })));
+  return `Erased a ${tr.layer} track segment${tr.net ? ' of ' + tr.net : ''}.`;
 });
 def(['drc', 'check'], 'Routing', 'drc', 'Design-rule check: clearances, shorts, unrouted nets, overlaps.', (a, ctx) => {
   const errs = runDRC();

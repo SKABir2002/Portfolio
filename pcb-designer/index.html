@@ -42,6 +42,21 @@
       <canvas id="board" tabindex="0" aria-label="PCB canvas"></canvas>
       <div class="hud" id="hud">x 0.00  y 0.00</div>
       <div class="status" id="status"></div>
+      <div class="palette" role="toolbar" aria-label="Drawing tools">
+        <button data-tool="select" class="active" title="Select and move (S)"><span aria-hidden="true">↖</span> Select</button>
+        <button data-tool="track" title="Draw a track (W)"><span aria-hidden="true">⟋</span> Track</button>
+        <button data-tool="via" title="Place a via (V)"><span aria-hidden="true">◉</span> Via</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button data-dl="top" class="lay lay-top active" title="Draw on top copper (L)">Top</button>
+        <button data-dl="bottom" class="lay lay-bottom" title="Draw on bottom copper (L)">Bottom</button>
+        <span id="draftBtns" hidden>
+          <span class="sep" aria-hidden="true"></span>
+          <button id="viaBtn" title="Drop a via here and switch layer (V)">+ Via</button>
+          <button id="finishBtn" class="accent" title="Finish the track (Enter)">✓ Finish</button>
+          <button id="cancelBtn" title="Cancel the track (Esc)">✕</button>
+        </span>
+      </div>
+      <div class="hint" id="hint"></div>
     </section>
 
     <aside class="side">

@@ -1,7 +1,8 @@
 // UI wiring: canvas interaction, console, panels, dialogs.
-import { doc, replaceDoc, snapshot, undo, redo, findComp, netOfPin } from './state.js';
+import { doc, replaceDoc, snapshot, undo, redo, findComp } from './state.js';
 import { execLine, splitScript, helpGroups, COMMANDS } from './commands.js';
-import { render, makeView, fitView, toWorld, hitComponent, hitPad } from './render.js';
+import { render, makeView, fitView, toWorld } from './render.js';
+import { createEditor } from './tools.js';
 import { ratsnest, netIslands } from './drc.js';
 import { gerberFiles, makeZip, toSVG, toBOM } from './export.js';
 import { askAI, DEFAULT_MODEL } from './ai.js';
@@ -38,6 +39,7 @@ function refresh({ keepMarkers = false } = {}) {
   const islands = netIslands();
   ui.rats = ratsnest(islands);
   if (ui.selected && !findComp(ui.selected)) ui.selected = null;
+  editor.validate();
   const unrouted = ui.rats.length;
   $('#status').textContent = `${doc.name} · ${doc.board.w}×${doc.board.h} mm · ${doc.components.length} parts · ${Object.keys(doc.nets).length} nets · ${doc.tracks.length} tracks · ${unrouted ? unrouted + ' unrouted' : 'all routed'}`;
   renderPanels();
@@ -66,7 +68,10 @@ const ctx = {
   showHelp,
   setMarkers(m) { ui.markers = m; },
   select(ref) { ui.selected = ref; draw(); },
-  setView(l) { ui.layer = ['top', 'bottom'].includes(l) ? l : 'all'; $('#layerSel').value = ui.layer; draw(); },
+  setView(l) {
+    if (['top', 'bottom'].includes(l)) editor.setDrawLayer(l); else ui.layer = 'all';
+    syncPalette(); draw();
+  },
   zoom(k) {
     if (k === 'in' || k === 'out') zoomAt(wrap.clientWidth / 2, wrap.clientHeight / 2, k === 'in' ? 1.25 : 0.8);
     else fitView(view, wrap.clientWidth, wrap.clientHeight);
@@ -170,7 +175,12 @@ function showHelp() {
     html += `<h3>${esc(g)}</h3>`;
     for (const s of specs) html += `<div class="help-cmd"><code>${esc(s.usage)}</code><span>${esc(s.desc)}${s.names.length > 1 ? ' Aliases: ' + esc(s.names.slice(1).join(', ')) : ''}</span></div>`;
   }
-  html += '<h3>Mouse &amp; keys</h3><div class="help-cmd"><span>Drag a part to move it · drag empty space to pan · wheel to zoom · hover a pad to see its net · R rotate · F flip · Delete remove · Ctrl+Z / Ctrl+Y undo/redo · ↑/↓ command history · Tab completes command names.</span></div>';
+  html += '<h3>Drawing with the mouse</h3>'
+    + '<div class="help-cmd"><code>S · Select</code><span>Drag parts, track segments or vias. Click a track, then drag its white corner handles. Delete removes the selected part, segment or via. R rotates, F flips. Drag empty space (or right/middle-drag) to pan; the wheel zooms.</span></div>'
+    + '<div class="help-cmd"><code>W · Track</code><span>Click a pad to start, click to add corners, click the target pad to finish (or double-click / right-click / Enter). V drops a via and switches layer, / changes the bend style, Backspace removes the last corner, Esc cancels. The preview turns orange when it gets too close to other copper. Drawing between pads also connects them in the netlist.</span></div>'
+    + '<div class="help-cmd"><code>V · Via</code><span>Click to place a via; on a track it joins that net.</span></div>'
+    + '<div class="help-cmd"><code>L · Layer</code><span>Switch between drawing on the top and bottom copper.</span></div>'
+    + '<div class="help-cmd"><span>Every mouse edit is one undo step (Ctrl+Z / Ctrl+Y) and shows up in the console. ↑/↓ recalls earlier commands, Tab completes command names. Mouse and commands can be mixed freely — e.g. autoroute, then fix one track by hand.</span></div>';
   $('#helpBody').innerHTML = html;
   $('#helpDialog').showModal();
 }
@@ -277,73 +287,43 @@ canvas.addEventListener('wheel', (e) => {
   draw();
 }, { passive: false });
 
-let drag = null;
-const snapG = (v) => Math.round(v / (doc.grid || 0.5)) * (doc.grid || 0.5);
-canvas.addEventListener('pointerdown', (e) => {
+function runCmd(line) { const prev = ui.mode; ui.mode = 'cmd'; run(line); ui.mode = prev; }
+
+const editor = createEditor({
+  canvas, view, ui, log, refresh, draw, ctx,
+  run: runCmd,
+  setHud(text) { $('#hud').textContent = text; },
+  onToolChange: syncPalette,
+});
+ui.overlay = editor.overlay;
+
+function syncPalette() {
+  document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === ui.tool));
+  document.querySelectorAll('[data-dl]').forEach((b) => b.classList.toggle('active', b.dataset.dl === ui.drawLayer));
+  $('#draftBtns').hidden = !editor.drawing;
+  $('#layerSel').value = ui.layer;
+  $('#hint').textContent = editor.hint;
+}
+document.querySelectorAll('[data-tool]').forEach((b) => b.addEventListener('click', () => { editor.setTool(b.dataset.tool); canvas.focus(); }));
+document.querySelectorAll('[data-dl]').forEach((b) => b.addEventListener('click', () => {
+  if (editor.drawing) { if (b.dataset.dl !== ui.drawLayer) editor.insertVia(); } else editor.setDrawLayer(b.dataset.dl);
   canvas.focus();
-  canvas.setPointerCapture(e.pointerId);
-  const r = canvas.getBoundingClientRect();
-  const sx = e.clientX - r.left, sy = e.clientY - r.top;
-  const [wx, wy] = toWorld(view, sx, sy);
-  const comp = e.button === 0 ? hitComponent(wx, wy) : null;
-  if (comp) {
-    ui.selected = comp.ref;
-    drag = { kind: 'comp', comp, dx: wx - comp.x, dy: wy - comp.y, x0: comp.x, y0: comp.y, before: JSON.stringify(doc) };
-  } else {
-    if (e.button === 0) ui.selected = null;
-    drag = { kind: 'pan', sx, sy, ox: view.ox, oy: view.oy };
-  }
-  draw();
-});
-canvas.addEventListener('pointermove', (e) => {
-  const r = canvas.getBoundingClientRect();
-  const sx = e.clientX - r.left, sy = e.clientY - r.top;
-  const [wx, wy] = toWorld(view, sx, sy);
-  let hud = `x ${wx.toFixed(2)}  y ${wy.toFixed(2)}  ·  ${(view.scale).toFixed(1)} px/mm`;
-  if (drag?.kind === 'comp') {
-    drag.comp.x = +snapG(wx - drag.dx).toFixed(3); drag.comp.y = +snapG(wy - drag.dy).toFixed(3);
-    ui.rats = ratsnest();
-  } else if (drag?.kind === 'pan') {
-    view.ox = drag.ox + sx - drag.sx; view.oy = drag.oy + sy - drag.sy;
-  } else {
-    const p = hitPad(wx, wy);
-    const net = p ? netOfPin(p.id) : null;
-    if (p) hud += `  ·  ${p.id}${net ? '  net ' + net : '  (no net)'}`;
-    else { const c = hitComponent(wx, wy); if (c) hud += `  ·  ${c.ref} ${c.fp} ${c.value || ''}`; }
-    if (net !== ui.hoverNet && (net || !$('#panel-nets').contains(document.activeElement))) ui.hoverNet = net;
-  }
-  $('#hud').textContent = hud;
-  draw();
-});
-canvas.addEventListener('pointerup', () => {
-  if (drag?.kind === 'comp') {
-    const c = drag.comp;
-    if (c.x !== drag.x0 || c.y !== drag.y0) {
-      const after = JSON.stringify(doc);
-      replaceDoc(JSON.parse(drag.before)); snapshot(); replaceDoc(JSON.parse(after));
-      log('cmd', `move ${c.ref} to ${c.x},${c.y}`);
-      refresh();
-    }
-  }
-  drag = null;
-});
-canvas.addEventListener('dblclick', (e) => {
-  const r = canvas.getBoundingClientRect();
-  const c = hitComponent(...toWorld(view, e.clientX - r.left, e.clientY - r.top));
-  if (c) { const prev = ui.mode; ui.mode = 'cmd'; run(`info ${c.ref}`); ui.mode = prev; }
-});
+}));
+$('#finishBtn').onclick = () => { editor.finishDraft(); canvas.focus(); };
+$('#cancelBtn').onclick = () => { editor.cancelDraft(); canvas.focus(); };
+$('#viaBtn').onclick = () => { editor.insertVia(); canvas.focus(); };
 
 document.addEventListener('keydown', (e) => {
   if (e.target === input || e.target.closest('dialog')) return;
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) { redo(); } else undo(); refresh(); return; }
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (editor.drawing) editor.cancelDraft(); if (e.shiftKey) redo(); else undo(); refresh(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); refresh(); return; }
-  if (mod) return;
-  if (ui.selected && (e.key === 'r' || e.key === 'R')) { run(`rotate ${ui.selected}`); return; }
-  if (ui.selected && (e.key === 'f' || e.key === 'F')) { run(`flip ${ui.selected}`); return; }
-  if (ui.selected && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); run(`delete ${ui.selected}`); return; }
-  if (e.key === 'Escape') { ui.selected = null; ui.markers = null; draw(); return; }
-  if (e.key.length === 1 && /[a-z?]/i.test(e.key) && !['r', 'f'].includes(e.key.toLowerCase())) input.focus();
+  if (mod || e.altKey) return;
+  // drawing shortcuts work while the canvas has focus (or a track is being drawn)
+  if (document.activeElement === canvas || editor.drawing) {
+    if (editor.onKey(e)) { e.preventDefault(); syncPalette(); return; }
+  } else if (e.key === 'Escape') { ui.selected = null; ui.markers = null; draw(); return; }
+  if (e.key.length === 1 && /[a-z?]/i.test(e.key)) input.focus();
 });
 
 // ---------------------------------------------------------------- start
@@ -353,6 +333,7 @@ function welcome() {
 Try ${ex('demo')} for a finished 555 blinker, or build one yourself:<br>
 ${ex('board 60x40')} · ${ex('add R0805 R1 10k at 15,20')} · ${ex('add LED0805 LED1 at 25,20')} · ${ex('connect R1.2 LED1.1')} · ${ex('route')} · ${ex('drc')} · ${ex('export gerber')}<br>
 With an API key you can just say what you want: ${ex('ai make a 5V to 3.3V regulator board with input and output headers')}<br>
+Prefer the mouse? Pick <b>Track</b> (W) above the board and click pad → pad to draw, or drag parts, tracks and vias in <b>Select</b> mode.<br>
 Type ${ex('help')} for every command, ${ex('footprints')} for the parts library.`, true);
 }
 
@@ -363,4 +344,6 @@ if (saved && doc.components.length) log('info', `Restored your last design "${do
 resize();
 fitView(view, wrap.clientWidth, wrap.clientHeight);
 refresh();
+syncPalette();
 input.focus();
+window.pcb = { doc, view, run: runCmd }; // handy for scripting from the browser console
